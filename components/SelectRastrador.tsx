@@ -19,10 +19,13 @@ export default function SelectRastrador({ selected, onSelect }: SelectRastradorP
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        console.log('Buscando rastreadores para usuário:', user.uid);
         const snap = await getDocs(collection(db, 'users', user.uid, 'rastradores'));
         const lista = snap.docs.map(doc => doc.data().numeroRastreador);
+        console.log('Rastreadores encontrados:', lista);
         setRastreadorList(lista);
       } else {
+        console.log('Usuário não autenticado');
         setRastreadorList([]);
       }
       setLoading(false);
@@ -42,10 +45,24 @@ export default function SelectRastrador({ selected, onSelect }: SelectRastradorP
       <Text style={styles.label}>Selecione o rastreador:</Text>
       <TouchableOpacity
         style={styles.selectedBox}
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          if (rastreadorList.length === 0) {
+            console.log('Nenhum rastreador disponível para seleção');
+            return;
+          }
+          setModalVisible(true);
+        }}
       >
-        <Text style={styles.selectedText}>{selected || 'Escolha um rastreador'}</Text>
+        <Text style={styles.selectedText}>
+          {selected ? selected : rastreadorList.length === 0 ? 'Nenhum rastreador disponível' : 'Escolha um rastreador'}
+        </Text>
       </TouchableOpacity>
+      
+      {rastreadorList.length === 0 && !loading && (
+        <Text style={styles.noRastreadoresText}>
+          Nenhum rastreador cadastrado. Cadastre um rastreador primeiro.
+        </Text>
+      )}
 
       <Modal
         visible={modalVisible}
@@ -76,6 +93,7 @@ export default function SelectRastrador({ selected, onSelect }: SelectRastradorP
                     selected === item && styles.selectedItem
                   ]}
                   onPress={() => {
+                    console.log('Rastreador selecionado:', item);
                     onSelect(item);
                     setModalVisible(false);
                     setSearch('');
@@ -86,7 +104,7 @@ export default function SelectRastrador({ selected, onSelect }: SelectRastradorP
               )}
               ListEmptyComponent={
                 <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>
-                  Nenhum rastreador encontrado
+                  {search ? 'Nenhum rastreador encontrado' : 'Nenhum rastreador disponível'}
                 </Text>
               }
             />
@@ -169,5 +187,11 @@ const styles = StyleSheet.create({
     color: '#fff', // texto branco para o selecionado
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  noRastreadoresText: {
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 14,
   },
 });

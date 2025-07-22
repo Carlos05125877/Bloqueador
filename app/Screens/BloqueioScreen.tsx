@@ -1,5 +1,6 @@
 import Header from '@/components/Header';
 import SelectRastrador from '@/components/SelectRastrador';
+import { doc, getDoc } from 'firebase/firestore';
 import type { MqttClient } from 'mqtt';
 import mqtt from 'mqtt';
 import React, { useEffect, useState } from 'react';
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { auth, db } from '../firebase/firebaseConfig';
 
 // Configurações do broker MQTT
 // Para React Native (e Expo), é comum usar WebSockets (porta 8000 para HiveMQ)
@@ -26,9 +28,35 @@ const App = () => {
   const [ledState, setLedState] = useState('Desconhecido');
   const [loading, setLoading] = useState(true);
   const [selectedRastreador, setSelectedRastreador] = useState(DISPONIVEIS[0]); // Estado para o rastreador selecionado
+  const [equipamento, setEquipamento] = useState<any>(null);
+  const [equipamentoLoading, setEquipamentoLoading] = useState(false);
 
   // O tópico agora depende do rastreador selecionado
   const MQTT_COMMAND_TOPIC = `rastreador/comandos/${selectedRastreador}`;
+
+  // Buscar dados do equipamento ao selecionar rastreador
+  useEffect(() => {
+    const fetchEquipamento = async () => {
+      setEquipamento(null);
+      if (!selectedRastreador) return;
+      setEquipamentoLoading(true);
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const rastreadorRef = doc(db, 'users', user.uid, 'rastradores', selectedRastreador);
+        const rastreadorSnap = await getDoc(rastreadorRef);
+        if (rastreadorSnap.exists()) {
+          const data = rastreadorSnap.data();
+          if (data.equipamentoVinculado) {
+            setEquipamento({ ...data.equipamentoVinculado, rastreadorVinculado: selectedRastreador });
+          }
+        }
+      } finally {
+        setEquipamentoLoading(false);
+      }
+    };
+    fetchEquipamento();
+  }, [selectedRastreador]);
 
   useEffect(() => {
     // Conecta ao broker MQTT
@@ -47,7 +75,6 @@ const App = () => {
     mqttClient.on('connect', () => {
       setIsConnected(true);
       setLoading(false);
-      Alert.alert('Conectado', 'Conectado ao broker MQTT!');
       console.log('Conectado ao broker MQTT');
     });
 
@@ -113,6 +140,7 @@ const App = () => {
         <SelectRastrador
           selected={selectedRastreador}
           onSelect={setSelectedRastreador}
+          
         />
       </View>
 
@@ -135,9 +163,21 @@ const App = () => {
       </View>
 
       <View style={styles.infoContainer}>
-        <Text style={styles.infoText}>Estado do Equipamento (Último comando): {ledState}</Text>
-        <Text style={styles.infoText}>Tópico de Comando: {MQTT_COMMAND_TOPIC}</Text>
-        <Text style={styles.infoText}>Broker MQTT: {MQTT_BROKER}</Text>
+        <Text style={styles.infoText}>Número do Rastreador: {selectedRastreador}</Text>
+        {equipamentoLoading ? (
+          <ActivityIndicator size="small" color="#007bff" />
+        ) : equipamento ? (
+          <>
+            <Text style={styles.infoText}>Modelo do Equipamento: {equipamento.modeloEquipamento}</Text>
+            <Text style={styles.infoText}>Número de Série: {equipamento.numeroSerie}</Text>
+            <Text style={styles.infoText}>Pedido de Venda / Ordem de Produção: {equipamento.numeroPedido}</Text>
+            <Text style={styles.infoText}>Data de Instalação: {equipamento.dataInstalacao}</Text>
+            <Text style={styles.infoText}>Técnico Instalador: {equipamento.tecnico}</Text>
+            <Text style={styles.infoText}>Estado do Equipamento: {ledState}</Text>
+          </>
+        ) : (
+          <Text style={styles.infoText}>Nenhum equipamento vinculado a este rastreador.</Text>
+        )}
       </View>
     </SafeAreaView>
   );

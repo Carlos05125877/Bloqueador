@@ -6,11 +6,17 @@ import React, { useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
+  Text,
   View
 } from 'react-native';
 
 export default function LocalizacaoScreen() {
   const [selectedRastreador, setSelectedRastreador] = useState<string>('');
+
+  const handleRastreadorSelect = (numero: string) => {
+    console.log('Rastreador selecionado na LocalizacaoScreen:', numero);
+    setSelectedRastreador(numero);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -19,11 +25,17 @@ export default function LocalizacaoScreen() {
         <View style={styles.areaSelect}>
           <SelectRastrador
             selected={selectedRastreador}
-            onSelect={setSelectedRastreador}
+            onSelect={handleRastreadorSelect}
           />
         </View>
         <View style={styles.areaMapa}>
-          <Mapa rastreadorId={selectedRastreador} />
+          {selectedRastreador ? (
+            <Mapa rastreadorId={selectedRastreador} />
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: '#888' }}>Selecione um rastreador para ver o mapa.</Text>
+            </View>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -37,16 +49,19 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   container: {
+    flex: 1,
     flexDirection: 'column',
   },
-  areaMapa: {
-    marginTop: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   areaSelect: {
-    marginTop: 50,
+    height: 150,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: '#f0f4f8',
+  },
+  areaMapa: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
 });

@@ -21,7 +21,10 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.carlossouza05.Bloqueador",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -49,6 +52,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bccda037-633f-49a0-a88d-b2e934d16a44"
+      }
+    },
+    "owner": "carlossouza05"
   }
 }

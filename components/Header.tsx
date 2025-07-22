@@ -15,7 +15,7 @@ const Header: React.FC<HeaderProps> = ({ title }) => {
             <View style={styles.Header} >
             <View style={styles.side}>
                 <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
-                    <AntDesign name="arrowleft" size={24} color="white" />
+                    <AntDesign name="arrowleft" size={24} color="#021C4E" />
                 </TouchableOpacity>
             </View>
             <View style={styles.titleContainer}>
@@ -34,12 +34,12 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     Header: {
-        backgroundColor: "#002845",
+        backgroundColor: "#f0f4f8",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
         width: "100%",
-        height: 50,
+        height: 60,
         paddingHorizontal: 16,
     },
     side: {
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontFamily: 'Alumni Sans SC',
         fontWeight: '700',
-        color: '#ffffff',
+        color: '#021C4E',
     },
 });
 

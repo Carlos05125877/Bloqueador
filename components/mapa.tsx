@@ -1,8 +1,12 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Mapbox from '@rnmapbox/maps';
 import mqtt from 'mqtt'; // Importa a biblioteca MQTT
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+
+import { useRouter } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { auth, db } from '../app/firebase/firebaseConfig';
 
 // Configura o token de acesso do Mapbox
 Mapbox.setAccessToken('pk.eyJ1IjoiY2FybG9zb3V6YTA1IiwiYSI6ImNtY2phZnl5NDAyNXoya3B6NGViaTI0MTAifQ.A1Yve7Y4anf6HhIC1sGdUQ');
@@ -16,6 +20,73 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
   const [isGpsDataReceived, setIsGpsDataReceived] = useState(false);
   const [mqttStatus, setMqttStatus] = useState('Conectando ao MQTT...');
 
+  // Localização padrão - Sete Lagoas, MG
+  const LOCALIZACAO_PADRAO = {
+    latitude: -19.47922020,
+    longitude: -44.2476992
+  };
+
+  // Função para salvar localização no Firestore
+  const salvarLocalizacao = async (rastreadorId: string, latitude: number, longitude: number) => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(
+          doc(db, 'users', user.uid, 'rastradores', rastreadorId),
+          {
+            numeroRastreador: rastreadorId,
+            ultimaLatitude: latitude,
+            ultimaLongitude: longitude,
+            ultimaAtualizacao: new Date().toISOString()
+          },
+          { merge: true }
+        );
+        console.log(`Localização salva para ${rastreadorId}:`, { latitude, longitude });
+      }
+    } catch (error) {
+      console.error(`Erro ao salvar localização para ${rastreadorId}:`, error);
+    }
+  };
+
+  // Função para carregar localização salva
+  const carregarLocalizacaoSalva = async (rastreadorId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const docRef = doc(db, 'users', user.uid, 'rastradores', rastreadorId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.ultimaLatitude && data.ultimaLongitude) {
+            setLatitude(data.ultimaLatitude);
+            setLongitude(data.ultimaLongitude);
+            setIsGpsDataReceived(true);
+            console.log(`Localização carregada para ${rastreadorId}:`, { latitude: data.ultimaLatitude, longitude: data.ultimaLongitude });
+          } else {
+            // Se não tem dados salvos, usar localização padrão
+            setLatitude(LOCALIZACAO_PADRAO.latitude);
+            setLongitude(LOCALIZACAO_PADRAO.longitude);
+            setIsGpsDataReceived(true);
+            console.log(`Usando localização padrão para ${rastreadorId}:`, LOCALIZACAO_PADRAO);
+          }
+        } else {
+          // Se o documento não existe, usar localização padrão
+          setLatitude(LOCALIZACAO_PADRAO.latitude);
+          setLongitude(LOCALIZACAO_PADRAO.longitude);
+          setIsGpsDataReceived(true);
+          console.log(`Usando localização padrão para ${rastreadorId}:`, LOCALIZACAO_PADRAO);
+        }
+      }
+    } catch (error) {
+      console.log(`Erro ao carregar localização salva para ${rastreadorId}:`, error);
+      // Em caso de erro, usar localização padrão
+      setLatitude(LOCALIZACAO_PADRAO.latitude);
+      setLongitude(LOCALIZACAO_PADRAO.longitude);
+      setIsGpsDataReceived(true);
+      console.log(`Usando localização padrão para ${rastreadorId}:`, LOCALIZACAO_PADRAO);
+    }
+  };
+
   useEffect(() => {
     let client; // Declara a variável client fora do try-catch para que possa ser acessada no cleanup
 
@@ -24,6 +95,9 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
       setMqttStatus('Aguardando a seleção do rastreador...');
       return; // Sai do useEffect se não houver rastreadorId
     }
+
+    // Carregar localização salva primeiro
+    carregarLocalizacaoSalva(rastreadorId);
 
     // Constrói o tópico MQTT usando o rastreadorId
     const mqttTopic = `rastreador/gps/${rastreadorId}`;
@@ -53,10 +127,15 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
       try {
         const data = JSON.parse(message.toString());
         if (data.latitude && data.longitude) {
-          setLatitude(parseFloat(data.latitude));
-          setLongitude(parseFloat(data.longitude));
+          const lat = parseFloat(data.latitude);
+          const lng = parseFloat(data.longitude);
+          setLatitude(lat);
+          setLongitude(lng);
           setIsGpsDataReceived(true);
           setMqttStatus('Dados GPS recebidos.');
+          
+          // Salvar localização no Firestore
+          salvarLocalizacao(rastreadorId, lat, lng);
         }
       } catch (e) {
         console.error('Erro ao analisar mensagem JSON:', e);
@@ -103,54 +182,280 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
           </View>
         )}
         <Mapbox.MapView style={styles.map}>
-          {/* A câmera e o marcador só serão renderizados se tivermos uma latitude/longitude válida */}
-          {latitude !== null && longitude !== null && (
-            <>
-              <Mapbox.Camera
-                zoomLevel={12}
-                centerCoordinate={[longitude, latitude]}
-                animationMode="flyTo" // Adiciona uma animação suave ao mover o mapa
-                animationDuration={2000} // Duração da animação em milissegundos
-              />
-              <Mapbox.PointAnnotation
-                id="LocalizacaoAtual" // ID único para o marcador
-                coordinate={[longitude, latitude]}
-              >
-                {/* Ícone personalizado para a localização */}
-                <MaterialIcons name="person-pin-circle" size={30} color="red" />
-                <Text style={{ color: 'black', fontSize: 12, textAlign: 'center' }}>
-                  {/* Você pode adicionar texto aqui se desejar, por exemplo, o ID do rastreador */}
-                </Text>
-              </Mapbox.PointAnnotation>
-            </>
-          )}
+          <Mapbox.Camera
+            zoomLevel={12}
+            centerCoordinate={[longitude, latitude]}
+            animationMode="flyTo"
+            animationDuration={2000}
+          />
+          <Mapbox.PointAnnotation
+            id="LocalizacaoAtual"
+            coordinate={[longitude, latitude]}
+          >
+            <Text style={styles.markerText}>
+              {rastreadorId || 'Localização Padrão'}
+            </Text>
+          </Mapbox.PointAnnotation>
         </Mapbox.MapView>
       </View>
     </View>
   );
 }
 
+// Novo componente para mostrar todos os rastreadores do usuário logado
+const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey }: { mapStyle?: 'streets' | 'satellite', refreshKey?: number }) => {
+  const [rastreadorList, setRastreadorList] = React.useState<string[]>([]);
+  const [localizacoes, setLocalizacoes] = React.useState<{ [id: string]: { latitude: number, longitude: number } }>({});
+  const [loading, setLoading] = React.useState(true);
+  const [mqttStatus, setMqttStatus] = React.useState('Conectando ao MQTT...');
+  const [isGpsDataReceived, setIsGpsDataReceived] = React.useState(false);
+  const mqttClients = React.useRef<{ [id: string]: any }>({});
+  const router = useRouter();
+
+  // Localização padrão - Sete Lagoas, MG
+  const LOCALIZACAO_PADRAO = {
+    latitude: -19.47922020,
+    longitude: -44.2476992
+  };
+
+  React.useEffect(() => {
+    // Buscar rastreadores do usuário logado
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const snap = await getDocs(collection(db, 'users', user.uid, 'rastradores'));
+        const lista = snap.docs.map(doc => doc.data().numeroRastreador);
+        setRastreadorList(lista);
+        
+        // Carregar localizações salvas do Firestore ou usar padrão
+        const localizacoesSalvas: { [id: string]: { latitude: number, longitude: number } } = {};
+        for (const rastreadorId of lista) {
+          try {
+            const docRef = doc(db, 'users', user.uid, 'rastradores', rastreadorId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data.ultimaLatitude && data.ultimaLongitude) {
+                localizacoesSalvas[rastreadorId] = {
+                  latitude: data.ultimaLatitude,
+                  longitude: data.ultimaLongitude
+                };
+              } else {
+                // Se não tem dados salvos, usar localização padrão
+                localizacoesSalvas[rastreadorId] = LOCALIZACAO_PADRAO;
+              }
+            } else {
+              // Se o documento não existe, usar localização padrão
+              localizacoesSalvas[rastreadorId] = LOCALIZACAO_PADRAO;
+            }
+          } catch (error) {
+            console.log(`Erro ao carregar localização salva para ${rastreadorId}:`, error);
+            // Em caso de erro, usar localização padrão
+            localizacoesSalvas[rastreadorId] = LOCALIZACAO_PADRAO;
+          }
+        }
+        setLocalizacoes(localizacoesSalvas);
+        setIsGpsDataReceived(lista.length > 0);
+      } else {
+        setRastreadorList([]);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, [refreshKey]);
+
+  // Função para salvar localização no Firestore
+  const salvarLocalizacao = async (rastreadorId: string, latitude: number, longitude: number) => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(
+          doc(db, 'users', user.uid, 'rastradores', rastreadorId),
+          {
+            numeroRastreador: rastreadorId,
+            ultimaLatitude: latitude,
+            ultimaLongitude: longitude,
+            ultimaAtualizacao: new Date().toISOString()
+          },
+          { merge: true }
+        );
+        console.log(`Localização salva para ${rastreadorId}:`, { latitude, longitude });
+      }
+    } catch (error) {
+      console.error(`Erro ao salvar localização para ${rastreadorId}:`, error);
+    }
+  };
+
+  React.useEffect(() => {
+    // Limpar conexões MQTT antigas
+    Object.values(mqttClients.current).forEach(client => {
+      if (client && client.connected) client.end();
+    });
+    mqttClients.current = {};
+    setMqttStatus('Conectando ao MQTT...');
+
+    if (rastreadorList.length === 0) return;
+
+    let receivedCount = 0;
+    rastreadorList.forEach(rastreadorId => {
+      const mqttTopic = `rastreador/gps/${rastreadorId}`;
+      const client = mqtt.connect('ws://broker.hivemq.com:8000/mqtt');
+      mqttClients.current[rastreadorId] = client;
+
+      client.on('connect', () => {
+        client.subscribe(mqttTopic, (err) => {
+          if (!err) {
+            setMqttStatus(`Assinado ao tópico ${mqttTopic}`);
+          } else {
+            setMqttStatus('Erro ao assinar tópico.');
+          }
+        });
+      });
+
+      client.on('message', (topic, message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.latitude && data.longitude) {
+            const lat = parseFloat(data.latitude);
+            const lng = parseFloat(data.longitude);
+            
+            setLocalizacoes(prev => ({ ...prev, [rastreadorId]: { latitude: lat, longitude: lng } }));
+            
+            // Salvar localização no Firestore
+            salvarLocalizacao(rastreadorId, lat, lng);
+            
+            receivedCount++;
+            if (receivedCount === rastreadorList.length) setIsGpsDataReceived(true);
+            setMqttStatus('Dados GPS recebidos.');
+          }
+        } catch (e) {
+          setMqttStatus('Erro ao receber dados GPS.');
+        }
+      });
+
+      client.on('error', (err) => {
+        setMqttStatus(`Erro MQTT: ${err.message}`);
+        if (client && client.connected) client.end();
+      });
+      client.on('close', () => {
+        setMqttStatus('Desconectado do MQTT.');
+      });
+    });
+
+    return () => {
+      Object.values(mqttClients.current).forEach(client => {
+        if (client && client.connected) client.end();
+      });
+      mqttClients.current = {};
+    };
+  }, [rastreadorList, refreshKey]);
+
+  // Centralizar o mapa na média das localizações ou usar localização padrão
+  const coords = Object.values(localizacoes);
+  const center = coords.length > 0
+    ? [
+        coords.reduce((sum, l) => sum + l.longitude, 0) / coords.length,
+        coords.reduce((sum, l) => sum + l.latitude, 0) / coords.length
+      ]
+    : [LOCALIZACAO_PADRAO.longitude, LOCALIZACAO_PADRAO.latitude];
+
+  return (
+    <View style={styles.page}>
+      <View style={styles.fullScreenMap}>
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0000ff" />
+            <Text style={styles.loadingText}>Carregando rastreadores...</Text>
+          </View>
+        )}
+        {!loading && coords.length === 0 && (
+          <View style={styles.loadingOverlay}>
+            <Text style={styles.loadingText}>Nenhum rastreador encontrado.</Text>
+            <Text style={styles.loadingText}>Localização: Sete Lagoas, MG</Text>
+          </View>
+        )}
+        <Mapbox.MapView
+          style={styles.map}
+          styleURL={
+            mapStyle === 'satellite'
+              ? Mapbox.StyleURL.Satellite
+              : Mapbox.StyleURL.Street
+          }
+        >
+          <Mapbox.Camera
+            zoomLevel={8}
+            centerCoordinate={center}
+            animationMode="flyTo"
+            animationDuration={2000}
+          />
+          {Object.entries(localizacoes).map(([id, loc]) => (
+            <Mapbox.PointAnnotation
+              key={String(id)}
+              id={String(id)}
+              coordinate={[loc.longitude, loc.latitude]}
+              onSelected={async () => {
+                // Buscar o equipamento vinculado ao rastreador (id)
+                try {
+                  const user = auth.currentUser;
+                  if (!user) {
+                    alert('Usuário não autenticado.');
+                    return;
+                  }
+                  const rastreadorRef = doc(db, 'users', user.uid, 'rastradores', String(id));
+                  const rastreadorSnap = await getDoc(rastreadorRef);
+                  if (rastreadorSnap.exists()) {
+                    const data = rastreadorSnap.data();
+                    console.log('Dados do rastreador:', data); // Log detalhado
+                    if (data.equipamentoVinculado && data.equipamentoVinculado.numeroSerie) {
+                      console.log('Numero de série encontrado:', data.equipamentoVinculado.numeroSerie);
+                      router.push(`./DetalhesScreen?numeroSerie=${data.equipamentoVinculado.numeroSerie}`);
+                    } else {
+                      alert('Equipamento não vinculado a este rastreador.');
+                    }
+                  } else {
+                    alert('Rastreador não encontrado.');
+                  }
+                } catch (e) {
+                  alert('Erro ao buscar equipamento vinculado.');
+                }
+              }}
+            >
+              <Text style={styles.markerText}>{String(id)}</Text>
+            </Mapbox.PointAnnotation>
+          ))}
+        </Mapbox.MapView>
+      </View>
+    </View>
+  );
+};
+
+export { MapaTodosRastreadores };
+
 export default Mapa;
 
 const styles = StyleSheet.create({
   page: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#F5FCFF',
   },
-  container: {
-    width: 350,
-    height: 300,
-    borderRadius: 15,
+  fullScreenMap: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    borderRadius: 0,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 10,
+  },
+  container: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 0,
+    overflow: 'hidden',
   },
   map: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -168,5 +473,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#333',
+  },
+  markerText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: 'black',
+    backgroundColor: 'white',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    textAlign: 'center',
   },
 });
