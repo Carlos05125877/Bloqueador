@@ -33,6 +33,10 @@ allprojects {
   }
 }
 
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
+// @generated begin @rnmapbox/maps-v2-maven - expo prebuild (DO NOT MODIFY) sync-32f1b7024bb5099f2805443b1960a3233ccde124
+
 allprojects {
   repositories {
     maven {
@@ -46,6 +50,4 @@ allprojects {
   }
 }
 
-
-apply plugin: "expo-root-project"
-apply plugin: "com.facebook.react.rootproject"
+// @generated end @rnmapbox/maps-v2-maven
