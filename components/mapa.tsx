@@ -203,7 +203,7 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
 }
 
 // Novo componente para mostrar todos os rastreadores do usuário logado
-const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey }: { mapStyle?: 'streets' | 'satellite', refreshKey?: number }) => {
+const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey, rastreadorSelecionado }: { mapStyle?: 'streets' | 'satellite', refreshKey?: number, rastreadorSelecionado?: string | null }) => {
   const [rastreadorList, setRastreadorList] = React.useState<string[]>([]);
   const [localizacoes, setLocalizacoes] = React.useState<{ [id: string]: { latitude: number, longitude: number } }>({});
   const [loading, setLoading] = React.useState(true);
@@ -351,12 +351,23 @@ const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey }: { mapStyle?
 
   // Centralizar o mapa na média das localizações ou usar localização padrão
   const coords = Object.values(localizacoes);
-  const center = coords.length > 0
-    ? [
-        coords.reduce((sum, l) => sum + l.longitude, 0) / coords.length,
-        coords.reduce((sum, l) => sum + l.latitude, 0) / coords.length
-      ]
-    : [LOCALIZACAO_PADRAO.longitude, LOCALIZACAO_PADRAO.latitude];
+  let center: [number, number];
+  if (
+    rastreadorSelecionado &&
+    localizacoes[rastreadorSelecionado]
+  ) {
+    center = [
+      localizacoes[rastreadorSelecionado].longitude,
+      localizacoes[rastreadorSelecionado].latitude,
+    ];
+  } else if (coords.length > 0) {
+    center = [
+      coords.reduce((sum, l) => sum + l.longitude, 0) / coords.length,
+      coords.reduce((sum, l) => sum + l.latitude, 0) / coords.length,
+    ];
+  } else {
+    center = [LOCALIZACAO_PADRAO.longitude, LOCALIZACAO_PADRAO.latitude];
+  }
 
   return (
     <View style={styles.page}>
@@ -382,7 +393,7 @@ const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey }: { mapStyle?
           }
         >
           <Mapbox.Camera
-            zoomLevel={8}
+            zoomLevel={rastreadorSelecionado ? 15 : 8}
             centerCoordinate={center}
             animationMode="flyTo"
             animationDuration={2000}

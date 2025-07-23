@@ -2,7 +2,7 @@ import { MapaTodosRastreadores } from '@/components/mapa';
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import React from 'react';
 import {
   SafeAreaView,
@@ -18,6 +18,7 @@ const HomeScreen = () => {
   const [userId, setUserId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState('');
   const [rastreadores, setRastreadores] = React.useState<string[]>([]);
+  const [rastreadorSelecionado, setRastreadorSelecionado] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -63,13 +64,13 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.fullScreenMapWrapper}>
-        <MapaTodosRastreadores mapStyle={mapStyle} refreshKey={refreshKey} />
+        <MapaTodosRastreadores mapStyle={mapStyle} refreshKey={refreshKey} rastreadorSelecionado={rastreadorSelecionado} />
       </View>
       <View style={styles.searchBarContainer}>
         <Feather name="search" size={20} color="#002845" style={{ marginLeft: 10 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Dispositivos por nome, tipo, endereço..."
+          placeholder="Dispositivos pelo número..."
           placeholderTextColor="#888"
           value={search}
           onChangeText={setSearch}
@@ -83,30 +84,10 @@ const HomeScreen = () => {
             <TouchableOpacity
               key={numero}
               style={styles.suggestionItem}
-              onPress={async () => {
+              onPress={() => {
                 setShowSuggestions(false);
                 setSearch('');
-                try {
-                  const user = auth.currentUser;
-                  if (!user) {
-                    alert('Usuário não autenticado.');
-                    return;
-                  }
-                  const rastreadorRef = doc(db, 'users', user.uid, 'rastradores', numero);
-                  const rastreadorSnap = await getDoc(rastreadorRef);
-                  if (rastreadorSnap.exists()) {
-                    const data = rastreadorSnap.data();
-                    if (data.equipamentoVinculado && data.equipamentoVinculado.numeroSerie) {
-                      router.push(`./DetalhesScreen?numeroSerie=${data.equipamentoVinculado.numeroSerie}`);
-                    } else {
-                      alert('Equipamento não vinculado a este rastreador.');
-                    }
-                  } else {
-                    alert('Rastreador não encontrado.');
-                  }
-                } catch (e) {
-                  alert('Erro ao buscar rastreador.');
-                }
+                setRastreadorSelecionado(numero); // Centraliza no rastreador
               }}
             >
               <Text style={styles.suggestionText}>{numero}</Text>
@@ -210,24 +191,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
-    backgroundColor: '#fff',
+    height: 130,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 8,
-    zIndex: 20,
+    paddingHorizontal: 30,
+    
   },
   bottomButton: {
-    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: 100,
+    height: 44,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 4,
+    elevation: 2,
+    marginTop: 20,
+    flexDirection: 'row',
     gap: 6,
   },
   bottomButtonText: {
