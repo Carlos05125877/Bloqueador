@@ -19,6 +19,7 @@ const HomeScreen = () => {
   const [search, setSearch] = React.useState('');
   const [rastreadores, setRastreadores] = React.useState<string[]>([]);
   const [rastreadorSelecionado, setRastreadorSelecionado] = React.useState<string | null>(null);
+  const [reposicionamentoKey, setReposicionamentoKey] = React.useState(0);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -64,7 +65,7 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.fullScreenMapWrapper}>
-        <MapaTodosRastreadores mapStyle={mapStyle} refreshKey={refreshKey} rastreadorSelecionado={rastreadorSelecionado} />
+        <MapaTodosRastreadores mapStyle={mapStyle} refreshKey={refreshKey} rastreadorSelecionado={rastreadorSelecionado} reposicionamentoKey={reposicionamentoKey} />
       </View>
       <View style={styles.searchBarContainer}>
         <Feather name="search" size={20} color="#002845" style={{ marginLeft: 10 }} />
@@ -87,7 +88,8 @@ const HomeScreen = () => {
               onPress={() => {
                 setShowSuggestions(false);
                 setSearch('');
-                setRastreadorSelecionado(numero); // Centraliza no rastreador
+                setRastreadorSelecionado(numero);
+                setReposicionamentoKey(prev => prev + 1); // Força o reposicionamento
               }}
             >
               <Text style={styles.suggestionText}>{numero}</Text>

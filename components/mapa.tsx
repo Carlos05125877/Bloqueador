@@ -203,7 +203,7 @@ const Mapa = ({ rastreadorId }: { rastreadorId: string }) => {
 }
 
 // Novo componente para mostrar todos os rastreadores do usuário logado
-const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey, rastreadorSelecionado }: { mapStyle?: 'streets' | 'satellite', refreshKey?: number, rastreadorSelecionado?: string | null }) => {
+const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey, rastreadorSelecionado, reposicionamentoKey }: { mapStyle?: 'streets' | 'satellite', refreshKey?: number, rastreadorSelecionado?: string | null, reposicionamentoKey?: number }) => {
   const [rastreadorList, setRastreadorList] = React.useState<string[]>([]);
   const [localizacoes, setLocalizacoes] = React.useState<{ [id: string]: { latitude: number, longitude: number } }>({});
   const [loading, setLoading] = React.useState(true);
@@ -393,6 +393,7 @@ const MapaTodosRastreadores = ({ mapStyle = 'streets', refreshKey, rastreadorSel
           }
         >
           <Mapbox.Camera
+            key={reposicionamentoKey}
             zoomLevel={rastreadorSelecionado ? 15 : 8}
             centerCoordinate={center}
             animationMode="flyTo"
