@@ -17,7 +17,7 @@ import { auth, db } from '../firebase/firebaseConfig';
 
 // Configurações do broker MQTT
 // Para React Native (e Expo), é comum usar WebSockets (porta 8000 para HiveMQ)
-const MQTT_BROKER = 'ws://broker.hivemq.com:8000/mqtt';
+const MQTT_BROKER = 'ws://test.mosquitto.org:8080/mqtt';
 const MQTT_CLIENT_ID = 'ContourlineRastrador_' + Math.random().toString(16).substr(2, 8); // ID único para o cliente MQTT
 
 const DISPONIVEIS = ['0407250001', '1234567890']; // Exemplo de lista de rastreadores
