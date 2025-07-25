@@ -51,7 +51,7 @@ export default function App() {
       <View style={styles.container}>
         <View style={styles.innerContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            Contorline Rastreio
+            Contourline Rastreio
           </Text>
           <View style={styles.inputBox}>
             <Input
