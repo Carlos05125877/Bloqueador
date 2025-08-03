@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Configuração para permitir tráfego HTTP/HTTPS para MQTT -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">10.0.3.2</domain>
+    </domain-config>
+    
+    <!-- Configuração específica para broker.hivemq.com (broker usado no app) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">broker.hivemq.com</domain>
+    </domain-config>
+    
+    <!-- Configuração para outros brokers MQTT comuns -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">test.mosquitto.org</domain>
+        <domain includeSubdomains="true">mqtt.eclipseprojects.io</domain>
+        <domain includeSubdomains="true">broker.emqx.io</domain>
+    </domain-config>
+    
+    <!-- Configuração para WebSocket connections (MQTT over WebSocket) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">ws://</domain>
+        <domain includeSubdomains="true">wss://</domain>
+    </domain-config>
+    
+    <!-- Configuração base para permitir tráfego HTTP em desenvolvimento -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

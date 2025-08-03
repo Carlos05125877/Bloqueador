@@ -102,6 +102,8 @@ packagingOptions {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+        // Permitir tráfego HTTP para MQTT WebSocket
+        usesCleartextTraffic true
     }
     signingConfigs {
         debug {

@@ -22,6 +22,8 @@
       "edgeToEdgeEnabled": true,
       "package": "com.carlossouza05.Bloqueador",
       "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
       ]
