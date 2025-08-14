@@ -4,7 +4,7 @@ import { StyleSheet, Text, TouchableOpacity } from "react-native";
 interface ButtonProps {
   titulo: string;
   onPress?: () => void;
-}
+} 
 
 const Button: React.FC<ButtonProps> = ({ titulo, onPress }) => {
   return (
