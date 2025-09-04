@@ -39,11 +39,11 @@ const char mqtt_password[] = "";              // Senha (deixe vazio para a maior
 const char mqtt_client_id[] = "ContourlineRastrador0407250001"; // ID único para o seu cliente MQTT
 
 // --- Tópicos MQTT ---
-// Usando o formato padronizado: rastreadores/{ID}/...
-const char mqtt_command_topic[] = "rastreadores/0407250001/comando";     // Para receber comandos
-const char mqtt_status_topic[] = "rastreadores/0407250001/status";       // Para publicar status
+// Usando o formato padronizado: rastreador/comandos/{ID} (compatível com o app)
+const char mqtt_command_topic[] = "rastreador/comandos/0407250001";     // Para receber comandos
+const char mqtt_status_topic[] = "rastreador/status/0407250001";       // Para publicar status
 const char mqtt_location_topic[] = "rastreadores/0407250001/localizacao"; // Para publicar dados GPS
-const char mqtt_pending_topic[] = "rastreadores/0407250001/comandos_pendentes"; // Comandos pendentes
+const char mqtt_pending_topic[] = "rastreador/comandos_pendentes/0407250001"; // Comandos pendentes
 const char mqtt_execution_status_topic[] = "rastreadores/0407250001/execucao"; // Status de execução
 
 // --- Objetos de Comunicação ---
@@ -136,9 +136,8 @@ void executeCommand(String command) {
     SerialMon.println("Relé ativado (BLOQUEADO)");
     preferences.putBool("relay_state", true); // Salva o estado "ON"
     
-    // Publica status no formato esperado pelo app
-    String statusPayload = "{\"status\":\"online\",\"relay\":\"ON\",\"comando\":\"bloqueio\",\"resultado\":\"executado\",\"timestamp\":" + String(millis()) + "}";
-    mqttClient.publish(mqtt_status_topic, statusPayload.c_str());
+    // Publica status simples no formato esperado pelo app
+    mqttClient.publish(mqtt_status_topic, "BLOQUEADO");
     
     // Envia confirmação com ID se disponível
     if (commandId != "") {
@@ -159,9 +158,8 @@ void executeCommand(String command) {
     SerialMon.println("Relé desativado (DESBLOQUEADO)");
     preferences.putBool("relay_state", false); // Salva o estado "OFF"
     
-    // Publica status no formato esperado pelo app
-    String statusPayload = "{\"status\":\"online\",\"relay\":\"OFF\",\"comando\":\"desbloqueio\",\"resultado\":\"executado\",\"timestamp\":" + String(millis()) + "}";
-    mqttClient.publish(mqtt_status_topic, statusPayload.c_str());
+    // Publica status simples no formato esperado pelo app
+    mqttClient.publish(mqtt_status_topic, "DESBLOQUEADO");
     
     // Envia confirmação com ID se disponível
     if (commandId != "") {
@@ -178,10 +176,10 @@ void executeCommand(String command) {
     }
     
   } else if (command == "status") {
-    // Solicitação de status - envia informações completas
-    String statusPayload = "{\"status\":\"online\",\"relay\":\"" + (digitalRead(OUT_PIN) == HIGH ? "ON" : "OFF") + "\",\"bateria\":" + String(getBatteryLevel()) + ",\"timestamp\":" + String(millis()) + "}";
-    mqttClient.publish(mqtt_status_topic, statusPayload.c_str());
-    SerialMon.println("Status enviado via MQTT");
+    // Solicitação de status - envia status simples
+    String currentStatus = (digitalRead(OUT_PIN) == HIGH) ? "BLOQUEADO" : "DESBLOQUEADO";
+    mqttClient.publish(mqtt_status_topic, currentStatus.c_str());
+    SerialMon.println("Status enviado via MQTT: " + currentStatus);
     
   } else {
     SerialMon.println("Comando desconhecido recebido.");
