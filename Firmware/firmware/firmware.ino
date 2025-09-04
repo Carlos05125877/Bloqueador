@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <TinyGPSPlus.h>
 #include <Preferences.h>
+#include <ArduinoJson.h>
 
 // --- Definições de pinos do TTGO T-Call ---
 #define MODEM_RST 5
@@ -40,8 +41,9 @@ const char mqtt_password[] = "";
 String mqtt_client_id = "";
 String mqtt_subscribe_topic = "";
 String mqtt_publish_topic = "";
-String mqtt_gps_topic = "";
-String mqtt_alert_topic = "";
+String mqtt_location_topic = "";
+String mqtt_status_topic = "";
+String mqtt_command_topic = "";
 
 // --- Objetos de Comunicação ---
 #define SerialMon Serial
@@ -56,10 +58,15 @@ Preferences preferences;
 
 // --- Variáveis de Tempo e Limites ---
 unsigned long lastGPSpublishTime = 0;
-const long gpsPublishInterval = 90000;
+const long gpsPublishInterval = 30000; // Reduzido para 30 segundos para testes
 unsigned long lastBatteryCheckTime = 0;
 const long batteryCheckInterval = 60000;
 const int BATTERY_LOW_THRESHOLD = 20;
+
+// --- Variáveis de status ---
+bool relayState = false;
+int lastBatteryLevel = -1;
+int lastSignalStrength = -1;
 
 // --- Função para manter a energia da bateria (chip IP5306) ---
 bool setPowerBoostKeepOn(int en) {
@@ -86,6 +93,45 @@ int getBatteryLevel() {
   return -1;
 }
 
+// --- Função para obter força do sinal GSM ---
+int getSignalStrength() {
+  if (modem.isNetworkConnected()) {
+    return modem.getSignalQuality();
+  }
+  return -1;
+}
+
+// --- Função para criar payload JSON ---
+String createLocationPayload(float latitude, float longitude, float speed = 0.0) {
+  DynamicJsonDocument doc(512);
+  
+  doc["latitude"] = latitude;
+  doc["longitude"] = longitude;
+  doc["timestamp"] = millis();
+  doc["velocidade"] = speed;
+  doc["bateria"] = getBatteryLevel();
+  doc["sinal"] = getSignalStrength();
+  doc["status"] = "online";
+  
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
+String createStatusPayload() {
+  DynamicJsonDocument doc(256);
+  
+  doc["status"] = "online";
+  doc["bateria"] = getBatteryLevel();
+  doc["sinal"] = getSignalStrength();
+  doc["relay"] = relayState ? "ON" : "OFF";
+  doc["timestamp"] = millis();
+  
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
 // --- Função de callback para mensagens MQTT recebidas ---
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   SerialMon.print("Mensagem MQTT recebida no topico: ");
@@ -97,22 +143,40 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   SerialMon.println(message);
 
-  if (String(topic) == mqtt_subscribe_topic) {
-    if (message == "ON") {
+  // Verificar se é um comando para este rastreador
+  if (String(topic) == mqtt_command_topic) {
+    if (message == "ON" || message == "bloqueio") {
       digitalWrite(LED_PIN_MQTT, HIGH);
       digitalWrite(OUT_PIN, HIGH);
+      relayState = true;
       SerialMon.println("Rele ativado (BLOQUEADO)");
-      mqttClient.publish(mqtt_publish_topic.c_str(), "BLOQUEADO");
+      
+      // Publicar confirmação
+      String response = "{\"comando\":\"bloqueio\",\"status\":\"executado\",\"relay\":\"ON\"}";
+      mqttClient.publish(mqtt_publish_topic.c_str(), response.c_str());
       preferences.putBool("relay_state", true);
-    } else if (message == "OFF") {
+      
+    } else if (message == "OFF" || message == "desbloqueio") {
       digitalWrite(LED_PIN_MQTT, LOW);
       digitalWrite(OUT_PIN, LOW);
+      relayState = false;
       SerialMon.println("Rele desativado (DESBLOQUEADO)");
-      mqttClient.publish(mqtt_publish_topic.c_str(), "DESBLOQUEADO");
+      
+      // Publicar confirmação
+      String response = "{\"comando\":\"desbloqueio\",\"status\":\"executado\",\"relay\":\"OFF\"}";
+      mqttClient.publish(mqtt_publish_topic.c_str(), response.c_str());
       preferences.putBool("relay_state", false);
+      
+    } else if (message == "status") {
+      // Solicitação de status
+      String statusPayload = createStatusPayload();
+      mqttClient.publish(mqtt_status_topic.c_str(), statusPayload.c_str());
+      SerialMon.println("Status enviado via MQTT");
+      
     } else {
       SerialMon.println("Comando desconhecido recebido.");
-      mqttClient.publish(mqtt_publish_topic.c_str(), "ERRO: Comando desconhecido");
+      String response = "{\"erro\":\"comando_desconhecido\",\"comando\":\"" + message + "\"}";
+      mqttClient.publish(mqtt_publish_topic.c_str(), response.c_str());
     }
   }
 }
@@ -124,9 +188,16 @@ void connectMqtt() {
     SerialMon.print("Tentando conexao MQTT...");
     if (mqttClient.connect(mqtt_client_id.c_str(), mqtt_username, mqtt_password)) {
       SerialMon.println(" Conectado!");
-      mqttClient.subscribe(mqtt_subscribe_topic.c_str());
+      
+      // Inscrever no tópico de comandos
+      mqttClient.subscribe(mqtt_command_topic.c_str());
       SerialMon.print("Assinado ao topico: ");
-      SerialMon.println(mqtt_subscribe_topic);
+      SerialMon.println(mqtt_command_topic);
+      
+      // Publicar status inicial
+      String statusPayload = createStatusPayload();
+      mqttClient.publish(mqtt_status_topic.c_str(), statusPayload.c_str());
+      
       digitalWrite(LED_PIN_MQTT, HIGH);
     } else {
       SerialMon.print(" falhou, rc=");
@@ -151,9 +222,9 @@ void setup() {
   preferences.begin("device-data", false);
   
   // Tenta ler o número de série da NVS
-  mqtt_client_id = preferences.getString("serial_num", "DEFAULT_ID_001");
+  mqtt_client_id = preferences.getString("serial_num", "RAST001");
   
-  if (mqtt_client_id == "DEFAULT_ID_001") {
+  if (mqtt_client_id == "RAST001") {
       SerialMon.println("AVISO: NUMERO DE SERIE PADRAO LIDO. POR FAVOR, GRAVE UM NOVO ID.");
   } else {
       SerialMon.print("Numero de Serie lido da NVS: ");
@@ -161,13 +232,20 @@ void setup() {
   }
 
   // Com o ID único em mãos, constrói os tópicos dinamicamente
-  String base_topic = "rastreador/";
-  mqtt_subscribe_topic = base_topic + "comandos/" + mqtt_client_id;
-  mqtt_publish_topic = base_topic + "status/" + mqtt_client_id;
-  mqtt_gps_topic = base_topic + "gps/" + mqtt_client_id;
-  mqtt_alert_topic = base_topic + "alerta/" + mqtt_client_id;
+  // Usando o formato esperado pelo app: rastreadores/{id}/...
+  String base_topic = "rastreadores/" + mqtt_client_id;
+  mqtt_command_topic = base_topic + "/comando";
+  mqtt_publish_topic = base_topic + "/status";
+  mqtt_location_topic = base_topic + "/localizacao";
+  mqtt_status_topic = base_topic + "/status";
+  
+  SerialMon.println("Topicos MQTT configurados:");
+  SerialMon.println("Comando: " + mqtt_command_topic);
+  SerialMon.println("Status: " + mqtt_status_topic);
+  SerialMon.println("Localizacao: " + mqtt_location_topic);
   
   bool lastRelayState = preferences.getBool("relay_state", false);
+  relayState = lastRelayState;
   digitalWrite(OUT_PIN, lastRelayState);
   if (lastRelayState) {
     SerialMon.println("Estado inicial do rele restaurado: LIGADO.");
@@ -257,59 +335,87 @@ void loop() {
 
   mqttClient.loop();
 
+  // Processar dados GPS
   while (SerialGPS.available()) {
     gps.encode(SerialGPS.read());
   }
 
+  // Publicar dados GPS quando disponíveis
   if (gps.location.isUpdated() && (millis() - lastGPSpublishTime > gpsPublishInterval)) {
     if (gps.location.isValid()) {
       float latitude = gps.location.lat();
       float longitude = gps.location.lng();
-
-      String gpsPayload = "{\"latitude\":";
-      gpsPayload += String(latitude, 6);
-      gpsPayload += ",\"longitude\":";
-      gpsPayload += String(longitude, 6);
-      gpsPayload += "}";
-
-      SerialMon.print("Publicando dados GPS para MQTT: ");
-      SerialMon.println(gpsPayload);
+      float speed = gps.speed.kmph();
 
       SerialMon.print("Latitude: ");
       SerialMon.print(latitude, 6);
       SerialMon.print(", Longitude: ");
-      SerialMon.println(longitude, 6);
+      SerialMon.print(longitude, 6);
+      SerialMon.print(", Velocidade: ");
+      SerialMon.print(speed);
+      SerialMon.println(" km/h");
 
       if (mqttClient.connected()) {
-        mqttClient.publish(mqtt_gps_topic.c_str(), gpsPayload.c_str());
+        String locationPayload = createLocationPayload(latitude, longitude, speed);
+        mqttClient.publish(mqtt_location_topic.c_str(), locationPayload.c_str());
         SerialMon.println("Dados GPS publicados no MQTT.");
       } else {
         SerialMon.println("Cliente MQTT nao conectado, nao e possivel publicar dados GPS.");
       }
+      
+      lastGPSpublishTime = millis();
     } else {
       SerialMon.println("Localizacao GPS nao valida (sem correcao ou dados invalidos).");
     }
-    lastGPSpublishTime = millis();
   }
 
+  // Verificar bateria e sinal periodicamente
   if (millis() - lastBatteryCheckTime > batteryCheckInterval) {
     int batteryLevel = getBatteryLevel();
-    if (batteryLevel != -1) {
+    int signalStrength = getSignalStrength();
+    
+    // Só publicar se houve mudança significativa
+    bool shouldPublish = false;
+    
+    if (batteryLevel != -1 && abs(batteryLevel - lastBatteryLevel) >= 5) {
       SerialMon.print("Nivel da Bateria: ");
       SerialMon.print(batteryLevel);
       SerialMon.println("%");
-
+      lastBatteryLevel = batteryLevel;
+      shouldPublish = true;
+      
       if (batteryLevel <= BATTERY_LOW_THRESHOLD) {
         SerialMon.println("ALERTA: Bateria baixa!");
-        mqttClient.publish(mqtt_alert_topic.c_str(), "Bateria Baixa!");
+        String alertPayload = "{\"tipo\":\"bateria_baixa\",\"nivel\":" + String(batteryLevel) + "}";
+        mqttClient.publish(mqtt_publish_topic.c_str(), alertPayload.c_str());
       }
     }
+    
+    if (signalStrength != -1 && abs(signalStrength - lastSignalStrength) >= 5) {
+      SerialMon.print("Forca do Sinal: ");
+      SerialMon.print(signalStrength);
+      SerialMon.println("%");
+      lastSignalStrength = signalStrength;
+      shouldPublish = true;
+    }
+    
+    // Publicar status atualizado se necessário
+    if (shouldPublish && mqttClient.connected()) {
+      String statusPayload = createStatusPayload();
+      mqttClient.publish(mqtt_status_topic.c_str(), statusPayload.c_str());
+    }
+    
     lastBatteryCheckTime = millis();
   }
 
+  // Indicador de status via LED
   if (modem.isGprsConnected() && mqttClient.connected()) {
     digitalWrite(LED_PIN_MQTT, HIGH);
   } else {
     digitalWrite(LED_PIN_MQTT, LOW);
   }
+  
+  // Pequeno delay para estabilidade
+  delay(100);
+}
 }

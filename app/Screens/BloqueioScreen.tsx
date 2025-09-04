@@ -70,64 +70,204 @@ const App = () => {
 
     // Evento de conexão bem-sucedida
     mqttClient.on('connect', () => {
+      console.log('✅ Conectado ao broker MQTT');
       setIsConnected(true);
       setLoading(false);
-      console.log('Conectado ao broker MQTT');
     });
 
     // Evento de erro de conexão
     mqttClient.on('error', (err) => {
-      console.error('Erro de conexão MQTT:', err);
-      Alert.alert('Erro de Conexão', 'Não foi possível conectar ao broker MQTT. Verifique sua conexão ou o broker.');
+      console.error('❌ Erro de conexão MQTT:', err);
       setIsConnected(false);
       setLoading(false);
     });
 
     // Evento de fechamento de conexão
     mqttClient.on('close', () => {
-      console.log('Conexão MQTT fechada');
+      console.log('🔌 Conexão MQTT fechada');
       setIsConnected(false);
       setLoading(false);
     });
 
     // Evento de reconexão
     mqttClient.on('reconnect', () => {
-      console.log('Tentando reconectar ao MQTT...');
+      console.log('🔄 Tentando reconectar ao MQTT...');
       setLoading(true);
+      setIsConnected(false);
+    });
+
+    // Evento de desconexão
+    mqttClient.on('disconnect', () => {
+      console.log('📡 Desconectado do broker MQTT');
+      setIsConnected(false);
+      setLoading(false);
     });
 
     // Evento de mensagens recebidas (debug)
     mqttClient.on('message', (topic, message) => {
       console.log('Mensagem recebida:', topic, message.toString());
+      
+      // Atualiza status do equipamento baseado nas mensagens recebidas
+      if (topic === `rastreador/status/${selectedRastreador}`) {
+        const status = message.toString();
+        if (status === 'BLOQUEADO') {
+          setLedState('Bloqueado');
+        } else if (status === 'DESBLOQUEADO') {
+          setLedState('Desbloqueado');
+        }
+      }
     });
 
     setClient(mqttClient);
+
+    // Verifica estado inicial da conexão
+    if (mqttClient.connected) {
+      console.log('✅ Cliente MQTT já conectado inicialmente');
+      setIsConnected(true);
+      setLoading(false);
+    } else {
+      console.log('❌ Cliente MQTT não conectado inicialmente');
+      setIsConnected(false);
+      setLoading(false);
+    }
 
     // Limpeza ao desmontar o componente
     return () => {
       if (mqttClient) {
         mqttClient.end();
-        console.log('Cliente MQTT desconectado.');
+        console.log('🔌 Cliente MQTT desconectado.');
       }
     };
   }, []); // O array vazio garante que este useEffect seja executado apenas uma vez ao montar
 
-  // Função para publicar comandos MQTT
+  // Função para publicar comandos MQTT com sistema de comandos pendentes
   const publishCommand = (command: string) => {
-    if (client && isConnected) {
-      console.log(`Publicando comando: ${command} no tópico: ${MQTT_COMMAND_TOPIC}`);
-      client.publish(MQTT_COMMAND_TOPIC, command, (err) => {
+    console.log(`=== DEBUG: Enviando Comando ===`);
+    console.log(`Comando: ${command}`);
+    console.log(`Rastreador: ${selectedRastreador}`);
+    console.log(`===============================`);
+    
+    // SEMPRE envia o comando diretamente para o ESP32
+    console.log(`📡 Enviando comando direto para ESP32: ${command}`);
+    
+    if (client && client.connected) {
+      // Envia comando direto e aguarda confirmação
+      sendDirectCommandWithConfirmation(command);
+    } else {
+      console.log('🚫 Cliente MQTT não disponível - enviando como pendente');
+      sendAsPendingCommand(command);
+    }
+  };
+
+  // Função para enviar comando direto e aguardar confirmação
+  const sendDirectCommandWithConfirmation = (command: string) => {
+    if (!client) {
+      console.log('❌ Cliente MQTT não disponível');
+      sendAsPendingCommand(command);
+      return;
+    }
+    
+    console.log(`🔄 Enviando comando direto e aguardando confirmação: ${command}`);
+    
+    // Gera ID único para este comando
+    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Envia comando com ID para rastreamento
+    const commandWithId = JSON.stringify({
+      command: command,
+      id: commandId,
+      timestamp: Date.now().toString(),
+      device_id: selectedRastreador
+    });
+    
+    client.publish(MQTT_COMMAND_TOPIC, commandWithId, (err) => {
+      if (err) {
+        console.error('❌ Falha ao enviar comando direto:', err);
+        sendAsPendingCommand(command);
+        return;
+      }
+      
+      console.log('✅ Comando enviado, aguardando confirmação...');
+      
+      // Configura timeout para confirmação (5 segundos)
+      const confirmationTimeout = setTimeout(() => {
+        console.log('⏰ Timeout: ESP32 não confirmou execução');
+        sendAsPendingCommand(command);
+      }, 5000);
+      
+      // Listener temporário para confirmação
+      const confirmationListener = (topic: string, message: Buffer) => {
+        try {
+          const response = JSON.parse(message.toString());
+          
+          // Verifica se é a confirmação do comando enviado
+          if (response.command_id === commandId && response.status === 'executed') {
+            console.log('✅ Confirmação recebida do ESP32!');
+            clearTimeout(confirmationTimeout);
+            
+                  // Remove listener temporário
+      if (client) {
+        client.removeListener('message', confirmationListener);
+      }
+      
+      // Atualiza estado
+      setLedState(command === 'ON' ? 'Bloqueado' : 'Desbloqueado');
+      Alert.alert('Comando Executado', `Comando "${command}" executado com sucesso pelo ESP32!`);
+          }
+        } catch (error) {
+          console.log('⚠️ Mensagem recebida não é confirmação válida');
+        }
+      };
+      
+      // Adiciona listener para confirmação
+      if (client) {
+        client.on('message', confirmationListener);
+      }
+    });
+  };
+
+  // Função auxiliar para enviar comandos pendentes
+  const sendAsPendingCommand = (command: string) => {
+    console.log(`💾 Enviando comando como pendente: ${command}`);
+    
+    // Cria comando pendente
+    const pendingCommand = {
+      command: command,
+      timestamp: Date.now().toString(),
+      id: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      device_id: selectedRastreador,
+      status: 'pending'
+    };
+    
+    // Atualiza estado local
+    setLedState(command === 'ON' ? 'Bloqueado' : 'Desbloqueado');
+    
+    // Mostra mensagem de comando pendente
+    Alert.alert(
+      'Comando Pendente', 
+      `Comando "${command}" enviado como pendente. O ESP32 executará quando se conectar.`,
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            console.log('💾 Comando pendente processado:', pendingCommand);
+          }
+        }
+      ]
+    );
+    
+    // SEMPRE envia para o tópico de comandos pendentes (mesmo se app offline depois)
+    if (client && client.connected) {
+      const pendingTopic = `rastreador/comandos_pendentes/${selectedRastreador}`;
+      client.publish(pendingTopic, JSON.stringify(pendingCommand), (err) => {
         if (err) {
-          console.error('Falha ao publicar mensagem:', err);
-          Alert.alert('Erro de Publicação', 'Não foi possível enviar o comando.');
+          console.log('❌ Falha ao enviar comando pendente para broker');
         } else {
-          setLedState(command === 'ON' ? 'Desbloqueado' : 'Bloqueado');
-          Alert.alert('Comando Enviado', `Comando "${command}" enviado com sucesso!`);
+          console.log('✅ Comando pendente enviado para broker com sucesso');
         }
       });
     } else {
-      Alert.alert('Erro', 'Não conectado ao broker MQTT.');
-      console.warn('Não conectado ao broker MQTT para publicar.');
+      console.log('🚫 Broker MQTT não disponível - comando salvo apenas localmente');
     }
   };
 
@@ -142,7 +282,6 @@ const App = () => {
         <SelectRastrador
           selected={selectedRastreador}
           onSelect={setSelectedRastreador}
-          
         />
       </View>
 
@@ -150,7 +289,7 @@ const App = () => {
         <TouchableOpacity
           style={[styles.button, styles.buttonOff]}
           onPress={() => publishCommand('OFF')}
-          disabled={!isConnected} // Desabilita o botão se não estiver conectado
+          disabled={false} // Sempre habilitado - sistema de comandos pendentes cuida do offline
         >
           <Text style={styles.buttonText}>Bloquear</Text>
         </TouchableOpacity>
@@ -158,7 +297,7 @@ const App = () => {
         <TouchableOpacity
           style={[styles.button, styles.buttonOn]}
           onPress={() => publishCommand('ON')}
-          disabled={!isConnected} // Desabilita o botão se não estiver conectado
+          disabled={false} // Sempre habilitado - sistema de comandos pendentes cuida do offline
         >
           <Text style={styles.buttonText}>Desbloquear</Text>
         </TouchableOpacity>
@@ -187,11 +326,11 @@ const App = () => {
 
 const styles = StyleSheet.create({
   container: {
-       flex: 1,
-        backgroundColor: '#f0f4f8',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        paddingTop: 20
+    flex: 1,
+    backgroundColor: '#f0f4f8',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 20
   },
   header: {
     marginBottom: 40,
@@ -216,6 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     width: '100%',
     marginBottom: 50,
+    paddingHorizontal: 20,
   },
   button: {
     paddingVertical: 15,

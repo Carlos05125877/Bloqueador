@@ -18,6 +18,8 @@
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
     "@rnmapbox/maps": "^10.1.39",
+    "date-fns": "^3.6.0",
+    "expo": "~53.0.20",
     "expo-blur": "~14.1.5",
     "expo-constants": "~17.1.6",
     "expo-dev-client": "~5.2.4",
@@ -43,8 +45,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-share": "^12.1.0",
     "react-native-web": "~0.20.0",
-    "react-native-webview": "13.13.5",
-    "expo": "~53.0.20"
+    "react-native-webview": "13.13.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

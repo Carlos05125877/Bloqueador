@@ -5,8 +5,8 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, getDocs } from 'firebase/firestore';
 import React from 'react';
 import {
-  SafeAreaView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View
+    SafeAreaView,
+    StyleSheet, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { auth, db } from '../firebase/firebaseConfig';
 
@@ -19,6 +19,7 @@ const HomeScreen = () => {
   const [search, setSearch] = React.useState('');
   const [rastreadores, setRastreadores] = React.useState<string[]>([]);
   const [rastreadorSelecionado, setRastreadorSelecionado] = React.useState<string | null>(null);
+  const [mapError, setMapError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -59,12 +60,32 @@ const HomeScreen = () => {
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
+    setMapError(null); // Limpar erro ao atualizar
+  };
+
+  const handleMapError = (error: string) => {
+    console.error('HomeScreen: Erro recebido do mapa:', error);
+    setMapError(error);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.fullScreenMapWrapper}>
-        <MapaTodosRastreadores mapStyle={mapStyle} refreshKey={refreshKey} rastreadorSelecionado={rastreadorSelecionado} />
+        {mapError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Erro ao carregar mapa: {mapError}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+              <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <MapaTodosRastreadores 
+            mapStyle={mapStyle} 
+            refreshKey={refreshKey} 
+            rastreadorSelecionado={rastreadorSelecionado}
+            onError={handleMapError}
+          />
+        )}
       </View>
       <View style={styles.searchBarContainer}>
         <Feather name="search" size={20} color="#002845" style={{ marginLeft: 10 }} />
@@ -254,6 +275,30 @@ const styles = StyleSheet.create({
   suggestionText: {
     color: '#002845',
     fontSize: 15,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f4f8',
+    padding: 20,
+  },
+  errorText: {
+    color: '#dc3545',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#007bff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

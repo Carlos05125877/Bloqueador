@@ -48,7 +48,11 @@ const SelectScreen = () => {
             icon={<FontAwesome6 name="list-ul" size={32} color="black" />}
             onPress={() => router.push('./ListaScreen')}
           />
-          <View style={[{width:'47%'}]}/>
+          <SelectFuncao 
+            title='Histórico de Localização'
+            icon={<Feather name="clock" size={32} color="black" />}
+            onPress={() => router.push('./HistoricoScreen')}
+          />
 
         </View>
         

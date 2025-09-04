@@ -1,19 +1,46 @@
-# Welcome to your Expo app 👋
+# Bloqueador - Sistema de Rastreamento e Bloqueio
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Sistema completo de rastreamento e bloqueio de veículos com interface mobile desenvolvida em React Native/Expo e backend Firebase.
 
-## Get started
+## Funcionalidades Principais
 
-1. Install dependencies
+- **Bloqueio/Desbloqueio**: Controle remoto de bloqueio de veículos
+- **Localização em Tempo Real**: Rastreamento GPS em tempo real
+- **Histórico de Localização**: Visualização completa do histórico de movimentação
+- **Cadastro de Dispositivos**: Gerenciamento de rastreadores e equipamentos
+- **Vincular Dispositivos**: Associação entre rastreadores e equipamentos
+- **Lista de Rastreadores**: Visão geral de todos os dispositivos
+- **Configurações**: Personalização do sistema
+
+## Tecnologias Utilizadas
+
+- **Frontend**: React Native, Expo, TypeScript
+- **Backend**: Firebase (Firestore, Authentication)
+- **Mapas**: React Native Maps
+- **Ícones**: Expo Vector Icons
+- **Navegação**: Expo Router
+
+## Como Começar
+
+1. Instalar dependências
 
    ```bash
    npm install
    ```
 
-2. Start the app
+2. Configurar Firebase
+   - Copie suas credenciais do Firebase para `app/firebase/firebaseConfig.js`
+   - Configure as regras de segurança do Firestore
+
+3. Iniciar o app
 
    ```bash
    npx expo start
+   ```
+
+4. Popular dados de teste (opcional)
+   ```bash
+   node scripts/popular-historico-teste.js popular
    ```
 
 In the output, you'll find options to open the app in a
@@ -35,12 +62,36 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
-## Learn more
+## Estrutura do Projeto
 
-To learn more about developing your project with Expo, look at the following resources:
+```
+Bloqueador/
+├── app/                          # Telas principais do app
+│   ├── Screens/                 # Todas as telas do sistema
+│   │   ├── HistoricoScreen.tsx  # Histórico de localização
+│   │   ├── BloqueioScreen.tsx   # Controle de bloqueio
+│   │   ├── LocalizacaoScreen.tsx # Localização em tempo real
+│   │   └── ...                  # Outras telas
+│   ├── firebase/                # Configuração do Firebase
+│   └── index.tsx                # Ponto de entrada
+├── components/                   # Componentes reutilizáveis
+├── scripts/                     # Scripts de utilidade
+│   └── popular-historico-teste.js # Popula dados de teste
+└── Firmware/                    # Código para dispositivos IoT
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Documentação
+
+- [Histórico de Localização](HISTORICO_LOCALIZACAO.md) - Guia completo da funcionalidade
+- [Sistema de Comandos](SISTEMA_COMANDS_PENDENTES.md) - Especificações técnicas
+- [Teste de Conectividade](TESTE_CONECTIVIDADE.md) - Procedimentos de teste
+
+## Saiba Mais
+
+Para mais informações sobre desenvolvimento com Expo, consulte:
+
+- [Documentação Expo](https://docs.expo.dev/): Fundamentos e guias avançados
+- [Tutorial Expo](https://docs.expo.dev/tutorial/introduction/): Tutorial passo a passo
 
 ## Join the community
 
